@@ -1,0 +1,60 @@
+name: Deploy to VPS
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Deploy to VPS
+        uses: appleboy/ssh-action@v0.1.5
+        with:
+          host: ${{ secrets.SSH_HOST_NOT }}
+          username: odaytarek
+          key: ${{ secrets.SSH_PRIVATE_KEY_NOT }}
+          port: 22
+          script: |
+            set -e  # Exit if any command fails
+
+            echo "🚀 Starting deployment on VPS..."
+
+            # Navigate to the project directory
+            cd ~/email-service 
+
+            echo "🛑 Stopping running containers..."
+            docker-compose down
+
+            echo "🔄 Resetting local changes..."
+            git reset --hard
+            git pull origin main  
+
+            echo "📝 Updating environment variables..."
+            rm -f .env
+            echo "${{ secrets.ENV }}" > .env
+            chmod 600 .env  # Restrict permissions
+
+            echo "🚧 Rebuilding and restarting containers..."
+            docker-compose up --build -d
+
+            echo "🧹 Cleaning up unused Docker resources..."
+            docker system prune -af
+
+            echo "✅ Deployment completed successfully!"
+
+      - name: Check if Service is Running
+        uses: appleboy/ssh-action@v0.1.5
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          port: ${{ secrets.SSH_PORT }}
+          script: |
+            echo "📌 Checking running Docker containers..."
+            docker ps
